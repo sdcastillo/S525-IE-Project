@@ -1,22 +1,128 @@
 ods html close;
-ods listing gpath="C:\Users\scastillo\Desktop\ie_project";
+ods listing gpath="C:\Users\scastillo\Desktop";
 
 option ls=100 nodate; /* sets line width at 100 characters */
 title 'Insurance Data'; /* gives the output a title */
 
 data insurance;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\scastillo\Desktop\ie_project\insurance.txt' firstobs = 2;     /* specifies file to read from */
+infile 'C:\Users\scastillo\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
 input zip $ fire theft age income race vol invol;     
 /* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
 run;
 
-proc print data=insurance; /* print out the data, 'atct'*/
+proc print data=insurance; /* print out the data,*/
 run;
 
-/**/
+/* Explore the relationships between the variables of interest.   
+   For example, suppose that the sas data, xxx,  has a response variable y,
+   seven continuous predictors x1, x2, ..., x7  and one categorical variable x8. */
+
+/*   proc sgscatter data=xxx; */
+/*      matrix y x1 x2 x3 x4 x5 x6 x7 x8 / diagonal=(histogram normal kernel);*/
+/*      matrix y x1 x2 x3 x4 x5 x6 x7 x8 / group=x8 diagonal=(histogram normal kernel); */
+/*      plot y*(x1 x2 x3 x4 x5 x6 x7 x8) / reg loess=(clm alpha=0.05);*/
+/*      plot y*(x1 x2 x3 x4 x5 x6 x7) / group=x8 reg=(nogroup) loess=(clm alpha=0.05 nogroup);*/
+/*   run;*/
+
+title 'EDA'; /* Exploratory Data Analysis */
+
+proc sgscatter data=insurance; 
+     matrix invol fire theft age income race vol / diagonal=(histogram normal kernel);
+     matrix invol fire theft age income race vol / group=zip diagonal=(histogram normal kernel); 
+     plot invol*(fire theft age income race vol) / reg loess=(clm alpha=0.05);
+     plot invol*(fire theft age income race vol)/ group=zip reg=(nogroup) loess=(clm alpha=0.05 nogroup);
+   run;
+
+/*Income and volume*/
+title 'Income and Vol'; /* Exploratory Data Analysis */
+
 proc gplot data=insurance;
-plot at*waist;  /* plots original data at versus waist 
+plot income*vol;  /* plots original data workhours versus lotsize */
 run;
+
+/*Pairwise Correlation*/
+title 'Correlation Analysis'; 
+
+proc corr data = insurance;
+var invol fire theft age income race vol;
+run;
+
+/*From the correlation matrix, we can see positive and negative relationships*/
+
+/*Correlation heatmap attempt*/
+title 'Correlation Heatmap'; /* Exploratory Data Analysis */
+
+/* Prepare the correlations coeff matrix: Pearson's r method */
+%macro prepCorrData(in= insurance, out= insurance2);
+  /* Run corr matrix for input data, all numeric vars */
+  proc corr data=&in. noprint
+    pearson
+    outp=work._tmpCorr
+    vardef=df
+  ;
+  run;
+ 
+  /* prep data for heat map */
+data &out.;
+  keep x y r;
+  set work._tmpCorr(where=(_TYPE_="CORR"));
+  array v{*} _numeric_;
+  x = _NAME_;
+  do i = dim(v) to 1 by -1;
+    y = vname(v(i));
+    r = v(i);
+    /* creates a lower triangular matrix */
+    if (i<_n_) then
+      r=.;
+    output;
+  end;
+run;
+ 
+proc datasets lib=work nolist nowarn;
+  delete _tmpcorr;
+quit;
+%mend;
+
+  /* Create a heat map implementation of a correlation matrix */
+ods path work.mystore(update) sashelp.tmplmst(read);
+ 
+proc template;
+  define statgraph corrHeatmap;
+   dynamic _Title;
+    begingraph;
+      entrytitle _Title;
+      rangeattrmap name='map';
+      /* select a series of colors that represent a "diverging"  */
+      /* range of values: stronger on the ends, weaker in middle */
+      /* Get ideas from http://colorbrewer.org                   */
+      range -1 - 1 / rangecolormodel=(cxD8B365 cxF5F5F5 cx5AB4AC);
+      endrangeattrmap;
+      rangeattrvar var=r attrvar=r attrmap='map';
+      layout overlay / 
+        xaxisopts=(display=(line ticks tickvalues)) 
+        yaxisopts=(display=(line ticks tickvalues));
+        heatmapparm x = x y = y colorresponse = r / 
+          xbinaxis=false ybinaxis=false
+          name = "heatmap" display=all;
+        continuouslegend "heatmap" / 
+          orient = vertical location = outside title="Pearson Correlation";
+      endlayout;
+    endgraph;
+  end;
+run;
+
+/* Build the graphs */
+ods graphics /height=600 width=800 imagemap;
+ 
+%prepCorrData(in=insurance,out=insurance2);
+proc sgrender data=insurance2 template=corrHeatmap;
+   dynamic _title="Corr matrix for SASHELP.cars";
+run;
+ 
+
+
+
+
 
 
 
