@@ -1,0 +1,23 @@
+ods html close;
+ods listing gpath="C:\Users\scastillo\Desktop\ie_project";
+
+option ls=100 nodate; /* sets line width at 100 characters */
+title 'Insurance Data'; /* gives the output a title */
+
+data insurance;            /* This data set will be a temporary sas file with name 'atct' */
+infile 'C:\Users\scastillo\Desktop\ie_project\insurance.txt' firstobs = 2;     /* specifies file to read from */
+input zip $ fire theft age income race vol invol;     
+/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
+run;
+
+proc print data=insurance; /* print out the data, 'atct'*/
+run;
+
+/**/
+proc gplot data=insurance;
+plot at*waist;  /* plots original data at versus waist 
+run;
+
+
+
+
