@@ -1,12 +1,18 @@
 ods html close;
-ods listing gpath="C:\Users\scastillo\Desktop";
+ods listing gpath="C:\Users\cconkey\Desktop";
 
 option ls=100 nodate; /* sets line width at 100 characters */
 title 'Insurance Data'; /* gives the output a title */
 
 data insurance;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\scastillo\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
+infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
 input zip $ fire theft age income race vol invol;     
+/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
+run;
+
+data insurance_zip_num;            /* This data set will be a temporary sas file with name 'atct' */
+infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
+input zip fire theft age income race vol invol;     
 /* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
 run;
 
@@ -120,10 +126,13 @@ proc sgrender data=insurance2 template=corrHeatmap;
 run;
  
 
-
-
-
-
-
+title 'Multiple Linear Reg'; /* Exploratory Data Analysis */
+proc reg data=insurance_zip_num;
+model invol =  fire + theft + age + income + race+ vol + zip;
+plot r.*invol r.*p. r.*nqq.;  /* here r=residual, p=predicted (fitted), 
+                      nqq=normal quantiles (expected values under normality)
+                      BE SURE TO HAVE DOTS AFTER r, p, nqq 
+                      This creates the plot of 1) residuals vs. x, 2) residuals vs. predicted,
+                      and 3) normal probability plot of residuals */
 
 
