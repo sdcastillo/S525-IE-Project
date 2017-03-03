@@ -135,4 +135,56 @@ plot r.*invol r.*p. r.*nqq.;  /* here r=residual, p=predicted (fitted),
                       This creates the plot of 1) residuals vs. x, 2) residuals vs. predicted,
                       and 3) normal probability plot of residuals */
 
+title 'Multiple Linear Reg'; /* Exploratory Data Analysis */
 
+title 'Histograms';
+proc boxplot data=insurance;
+   plot age*zip;
+run;
+
+/*Why can't I use a glm with zip as a categorical variable?*/
+
+/*proc univariate data=insurance;*/
+/*   histogram;*/
+/*run;*/
+
+/*proc glm data = insurance_zip_num;*/
+/*class zip;*/
+/*model invol =  fire theft age income race vol zip/p;*/
+/*output out = stats p = pred r = res;*/
+/*run;*/
+
+title 'Income by Zip';
+
+axis1 stagger label=none;
+axis2 label=(a=90 'Income');
+
+/* Create space at the bottom of the graph */
+footnote h=.01 in ' ';
+
+proc gchart data=insurance;
+   vbar zip / sumvar=income maxis=axis1 raxis=axis2;
+run;
+quit; 
+
+title 'Invol by Zip';
+
+axis1 stagger label=none;
+axis2 label=(a=90 'Invol');
+
+/* Create space at the bottom of the graph */
+footnote h=.01 in ' ';
+
+proc gchart data=insurance;
+   vbar zip / sumvar=invol maxis=axis1 raxis=axis2;
+run;
+quit; 
+
+title 'Invol and Income by Zip';
+
+proc sgplot data=insurance;
+  title 'Income and Invol by Zip';
+  vbar invol / response=invol group=quarter dataskin=gloss;
+  xaxis display=(nolabel);
+  yaxis grid;
+  run;
