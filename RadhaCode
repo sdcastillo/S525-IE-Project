@@ -16,9 +16,14 @@ run;
 proc reg data=insurance;
 model invol=fire;
 plot invol*fire;
+output out = fireinvol r=fire_Resid;
 plot r.*fire r.*p. r.*nqq.;
 run;
 
 proc univariate data=insurance plot;
 var invol fire;
+run;
+
+proc univariate plot data=fireinvol;
+var fire_Resid;
 run;
