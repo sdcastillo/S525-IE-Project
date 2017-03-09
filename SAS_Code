@@ -1,22 +1,17 @@
 ods html close;
-ods listing gpath="C:\Users\cconkey\Desktop";
+ods listing gpath="C:\Users\scastillo\Desktop";
 
 option ls=100 nodate; /* sets line width at 100 characters */
 title 'Insurance Data'; /* gives the output a title */
 
-data insurance;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
-input zip $ fire theft age income race vol invol;     
-/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
+/*local levels are 0 = south, 1 = w, 2 = d, 3 = n*/
+
+data insurance;            
+infile 'C:\Users\scastillo\Desktop\insurance.txt' firstobs = 2 dlm = '09'x dsd lrecl = 4096 truncover;    
+input zip $ fire theft age income race vol invol local $;     
 run;
 
-data insurance_zip_num;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
-input zip fire theft age income race vol invol;     
-/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
-run;
-
-proc print data=insurance; /* print out the data,*/
+proc print data=insurance; 
 run;
 
 /* Explore the relationships between the variables of interest.   
@@ -126,13 +121,137 @@ proc sgrender data=insurance2 template=corrHeatmap;
 run;
  
 
-title 'Multiple Linear Reg'; /* Exploratory Data Analysis */
-proc reg data=insurance_zip_num;
-model invol =  fire + theft + age + income + race+ vol + zip;
-plot r.*invol r.*p. r.*nqq.;  /* here r=residual, p=predicted (fitted), 
-                      nqq=normal quantiles (expected values under normality)
-                      BE SURE TO HAVE DOTS AFTER r, p, nqq 
-                      This creates the plot of 1) residuals vs. x, 2) residuals vs. predicted,
-                      and 3) normal probability plot of residuals */
+/*title 'Multiple Linear Reg'; /* Exploratory Data Analysis */*/
+/*proc reg data=insurance_zip_num;*/
+/*model invol =  fire + theft + age + income + race+ vol + local;*/
+/*plot r.*invol r.*p. r.*nqq.;  /* here r=residual, p=predicted (fitted), */
+/*                      nqq=normal quantiles (expected values under normality)*/
+/*                      BE SURE TO HAVE DOTS AFTER r, p, nqq */
+/*                      This creates the plot of 1) residuals vs. x, 2) residuals vs. predicted,*/
+/*                      and 3) normal probability plot of residuals */*/
 
 
+
+ods graphics on;
+title 'Box Plot by Local Area';
+proc boxplot data=insurance;
+   plot invol*local /
+      boxstyle = schematic
+      nohlabel;
+   label local = 'Delay in Minutes';
+run;
+
+title "Scatterplot attempt";
+ods listing style=listing;
+   
+   proc sgplot data=insurance;
+      title 'Race and Invol factored by District';
+      scatter x=race y=invol / group=local;
+   run;
+
+title 'Bar Plot of Zip';
+
+axis1 stagger label=none;
+axis2 label=(a=90 'Height');
+
+/* Create space at the bottom of the graph */
+footnote h=.01 in ' ';
+
+proc gchart data=sashelp.class;
+   vbar name / sumvar=height maxis=axis1 raxis=axis2;
+run;
+quit; 
+
+title 'Distribution of Invol';
+
+/*Subset the data by local district*/]
+
+DATA south;
+    SET insurance;/*all but district 0*/
+    IF (local = 1) THEN DELETE;
+	IF (local = 2) THEN DELETE;
+	IF (local = 3) THEN DELETE;
+RUN;
+
+DATA north;
+    SET insurance;/*all but district 3*/
+    IF (local = 1) THEN DELETE;
+	IF (local = 2) THEN DELETE;
+	IF (local = 0) THEN DELETE;
+RUN;
+
+DATA central;
+    SET insurance;/*all but district 1*/
+    IF (local = 0) THEN DELETE;
+	IF (local = 2) THEN DELETE;
+	IF (local = 3) THEN DELETE;
+RUN;
+
+DATA not_downtown;
+    SET insurance;/*all but district 1*/
+    IF (local = 2) THEN DELETE;
+RUN;
+
+title "Race, Invol, and Income in the South";
+proc sgplot data=south;
+scatter x=race y=invol / colorresponse=income
+        markerattrs=(symbol=CircleFilled size=12)  /* big filled markers */
+        datalabel=race;                            /* add labels to markers */
+run;
+
+title "Race, Invol, and Income in the North";
+proc sgplot data=north;
+scatter x=race y=invol / colorresponse=income
+        markerattrs=(symbol=CircleFilled size=12)  /* big filled markers */
+        datalabel=race;                            /* add labels to markers */
+run;
+
+title "Race, Invol, and Income in Central";
+proc sgplot data=central;
+scatter x=race y=invol / colorresponse=income
+        markerattrs=(symbol=CircleFilled size=12)  /* big filled markers */
+        datalabel=race;                            /* add labels to markers */
+run;
+
+proc reg data=south;
+model invol=theft;
+output out=theftinvol r=theft_Resid; 
+plot invol*race;
+plot r.*race r.*p. r.*nqq.;
+run;
+
+proc univariate plot data=theftinvol;
+var theft_Resid;
+run;
+
+
+
+/* Set the graphics environment */                                                                                                      
+goptions reset=all cback=white border htitle=12pt htext=10pt;                                                                           
+                                                                                                                                        
+/* Define the title */                                                                                                                  
+title1 "Invol by Zip, Grouped by District";                                                                                           
+                                                                                                                                        
+/* Define the axis characteristics */                                                                                                   
+axis1 value=none label=none;                                                                                                          
+axis2 label=(angle=90 "Invol");                                                                                                
+axis3 label=none;                                                                                                                     
+                                                                                                                                        
+/* Define the legend options */                                                                                                         
+legend1 frame;                                                                                                                        
+                                                                                                                                        
+/* Generate the graph */                                                                                                                
+proc gchart data=not_downtown;                                                                                                       
+   vbar zip / group=local sumvar=invol                                                                           
+                  legend=legend1 space=0 gspace=4                                                                                        
+                  maxis=axis1 raxis=axis2 gaxis=axis3;                                                                                   
+run;                                                                                                                                    
+quit;   
+
+DATA south2;
+    SET insurance;/*all but district 0*/
+    log_invol = log(invol);
+RUN;
+
+proc print data=south2; 
+run;
