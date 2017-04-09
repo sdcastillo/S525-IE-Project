@@ -1,138 +1,184 @@
-ods html close;
-ods listing gpath="C:\Users\cconkey\Desktop";
+title 'IE Master ';
 
-option ls=100 nodate; /* sets line width at 100 characters */
-title 'Insurance Data'; /* gives the output a title */
+/*NOTE: This is using a new dataset with the update geographical variable.  This is ont the github page.*/
 
-data insurance;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
-input zip $ fire theft age income race vol invol;     
-/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
+proc import datafile="/folders/myfolders/IE_project/by_zip.csv" out=insurance_raw 
+		dbms=csv replace;
+	getnames=yes;
 run;
 
-data insurance_zip_num;            /* This data set will be a temporary sas file with name 'atct' */
-infile 'C:\Users\cconkey\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
-input zip fire theft age income race vol invol;     
-/* names input variables BE SURE TO CHECK EACH DATA SET FOR THE ORDER OF X,Y VARIABLES */
+proc print data=insurance_raw;
+	/* print out the data,*/
 run;
 
-proc print data=insurance; /* print out the data,*/
+/* CREATE DUMMY GEOGRAPHIC VARIABLE */
+/* 
+ * d = downtown
+ * fns = far north side
+ * ns = north side
+ * nws = north west side
+ * s = south
+ * ws = west side
+ * 
+ * See the map
+ */
+
+/* Here I'm using d = downtown = 0 as a reference level.  -Sam */
+data insurance;
+	set insurance_raw;
+/* 	if area = "d" then d = 1; */
+	if area = "fns" then fns = 1;
+	if area = "ns" then ns = 1;
+	if area = "nws" then nws = 1;
+	if area = "s" then s = 1;
+	if area = "ws" then ws = 1;
+	cat_area = put(area, 10. -L);
+	drop area;
+	rename cat_area = area;
 run;
 
-/* Explore the relationships between the variables of interest.   
-   For example, suppose that the sas data, xxx,  has a response variable y,
-   seven continuous predictors x1, x2, ..., x7  and one categorical variable x8. */
+/* Can't make this matrix without converting area to categorical */
+/* proc sgscatter data=insurance;  */
+/*       matrix invol income race fire theft vol age / diagonal=(histogram normal kernel); */
+/*       matrix invol income race fire theft vol age area / group=area diagonal=(histogram normal kernel);  */
+/*       plot invol*(income race fire theft vol area) / reg loess=(clm alpha=0.05); */
+/*       plot invol*(income race fire theft vol age) / group=area reg=(nogroup) loess=(clm alpha=0.05 nogroup); */
+/*    run; */
 
-/*   proc sgscatter data=xxx; */
-/*      matrix y x1 x2 x3 x4 x5 x6 x7 x8 / diagonal=(histogram normal kernel);*/
-/*      matrix y x1 x2 x3 x4 x5 x6 x7 x8 / group=x8 diagonal=(histogram normal kernel); */
-/*      plot y*(x1 x2 x3 x4 x5 x6 x7 x8) / reg loess=(clm alpha=0.05);*/
-/*      plot y*(x1 x2 x3 x4 x5 x6 x7) / group=x8 reg=(nogroup) loess=(clm alpha=0.05 nogroup);*/
-/*   run;*/
+/* In Summary, I find three possible models:  */
+/* model 1:  sqrt(invol) ~ log(fire) + income + race^(1/3) + area */
+/* model 2:  sqrt(invol) ~ log(fire) + income + race^(1/3) + vol + area*/
+/* model 3: sqrt(invol) ~ log(fire) + income + race^(1/3)  + vol + theft + area*/
 
-title 'EDA'; /* Exploratory Data Analysis */
+/* Next steps:
+/* 1.  Actually fit these models and see how they perform */
+/* 2.  Look at the VIF to see if we need to include all predictors.  ie, what about vol and theft? */
+/* 3.  Test for colinearity between the (now transformed) predictors*/
 
-proc sgscatter data=insurance; 
-     matrix invol fire theft age income race vol / diagonal=(histogram normal kernel);
-     matrix invol fire theft age income race vol / group=zip diagonal=(histogram normal kernel); 
-     plot invol*(fire theft age income race vol) / reg loess=(clm alpha=0.05);
-     plot invol*(fire theft age income race vol)/ group=zip reg=(nogroup) loess=(clm alpha=0.05 nogroup);
-   run;
-
-/*Income and volume*/
-title 'Income and Vol'; /* Exploratory Data Analysis */
-
-proc gplot data=insurance;
-plot income*vol;  /* plots original data workhours versus lotsize */
+data insurance_invol_adj;
+	set insurance;
+	root_invol=sqrt(invol);
 run;
 
-/*Pairwise Correlation*/
-title 'Correlation Analysis'; 
+/* Root invol vs fire regression model */
+proc reg data=insurance_invol_adj;
+	model root_invol=fire;
+	plot root_invol*fire;
+	output out=fireroot_invol r=fire_Resid;
+	plot r.*fire r.*p. r.*nqq.;
+	run;
 
-proc corr data = insurance;
-var invol fire theft age income race vol;
+proc univariate data=insurance_invol_adj plot;
+	var root_invol fire;
 run;
 
-/*From the correlation matrix, we can see positive and negative relationships*/
+/*From the fit of root invol v fire, it looks as though there is a downward curve.  This implies
+that we should also take the sqrt or log of fire.  I tried both and found the log to give a slightly
+better fit.  Not the significant number of zero invol values.  - Sam*/
 
-/*Correlation heatmap attempt*/
-title 'Correlation Heatmap'; /* Exploratory Data Analysis */
-
-/* Prepare the correlations coeff matrix: Pearson's r method */
-%macro prepCorrData(in= insurance, out= insurance2);
-  /* Run corr matrix for input data, all numeric vars */
-  proc corr data=&in. noprint
-    pearson
-    outp=work._tmpCorr
-    vardef=df
-  ;
-  run;
- 
-  /* prep data for heat map */
-data &out.;
-  keep x y r;
-  set work._tmpCorr(where=(_TYPE_="CORR"));
-  array v{*} _numeric_;
-  x = _NAME_;
-  do i = dim(v) to 1 by -1;
-    y = vname(v(i));
-    r = v(i);
-    /* creates a lower triangular matrix */
-    if (i<_n_) then
-      r=.;
-    output;
-  end;
-run;
- 
-proc datasets lib=work nolist nowarn;
-  delete _tmpcorr;
-quit;
-%mend;
-
-  /* Create a heat map implementation of a correlation matrix */
-ods path work.mystore(update) sashelp.tmplmst(read);
- 
-proc template;
-  define statgraph corrHeatmap;
-   dynamic _Title;
-    begingraph;
-      entrytitle _Title;
-      rangeattrmap name='map';
-      /* select a series of colors that represent a "diverging"  */
-      /* range of values: stronger on the ends, weaker in middle */
-      /* Get ideas from http://colorbrewer.org                   */
-      range -1 - 1 / rangecolormodel=(cxD8B365 cxF5F5F5 cx5AB4AC);
-      endrangeattrmap;
-      rangeattrvar var=r attrvar=r attrmap='map';
-      layout overlay / 
-        xaxisopts=(display=(line ticks tickvalues)) 
-        yaxisopts=(display=(line ticks tickvalues));
-        heatmapparm x = x y = y colorresponse = r / 
-          xbinaxis=false ybinaxis=false
-          name = "heatmap" display=all;
-        continuouslegend "heatmap" / 
-          orient = vertical location = outside title="Pearson Correlation";
-      endlayout;
-    endgraph;
-  end;
+data insurance_invol_fire_adj;
+	set insurance;
+	log_fire=log(fire);
+	root_invol=sqrt(invol);
 run;
 
-/* Build the graphs */
-ods graphics /height=600 width=800 imagemap;
- 
-%prepCorrData(in=insurance,out=insurance2);
-proc sgrender data=insurance2 template=corrHeatmap;
-   dynamic _title="Corr matrix for SASHELP.cars";
+title 'root_invol v log_fire';
+
+proc reg data=insurance_invol_fire_adj;
+	model root_invol=log_fire;
+
+	/* plot root_invol*log_fire; */
+	/* output out = logfire_root_invol r=log_fire_Resid; */
+	/* plot r.*log_fire r.*p. r.*nqq.; */
+	run;
+
+	/* Root invol vs income regression model */
+data insurance_income_adj;
+	set insurance;
+	root_invol=sqrt(invol);
 run;
- 
 
-title 'Multiple Linear Reg'; /* Exploratory Data Analysis */
-proc reg data=insurance_zip_num;
-model invol =  fire + theft + age + income + race+ vol + zip;
-plot r.*invol r.*p. r.*nqq.;  /* here r=residual, p=predicted (fitted), 
-                      nqq=normal quantiles (expected values under normality)
-                      BE SURE TO HAVE DOTS AFTER r, p, nqq 
-                      This creates the plot of 1) residuals vs. x, 2) residuals vs. predicted,
-                      and 3) normal probability plot of residuals */
+/* The below output looks fine.  I don't believe we need to transform income - Sam */
+title 'root_invol v income';
+
+proc reg data=insurance_income_adj;
+	model root_invol=income;
+	plot root_invol*income;
+	output out=fireroot_invol r=income_Resid;
+	plot r.*income r.*p. r.*nqq.;
+	run;
+
+/* root invol vs race regression model */
+data insurance_race_adj;
+	set insurance;
+	root_invol=sqrt(invol);
+	root_race=race**(1/3);
+run;
+
+title 'root_invol v cube_root_race';
+
+/* The residuals are approximately normal (only slightly skewed) and the plot shows a decent fit. */
+/* All points are inside the confidence bands -Sam */
+
+proc reg data=insurance_race_adj;
+	model root_invol=root_race;
+	plot root_invol*root_race;
+	output out = race_root_invol r = root_race_Resid;
+	plot r.*root_race r.*p. r.*nqq.;
+	run;
 
 
+/* root invol vs age */
+data insurance_age_adj;
+	set insurance;
+	root_invol = sqrt(invol);
+run;
+
+title 'root_invol v age';
+
+/*  */
+
+proc reg data = insurance_age_adj;
+	model root_invol = age;
+	plot root_invol*age;
+	output out = race_root_invol r = age_Resid;
+	plot r.age r.*p. r.*nqq.;
+	run;
+	
+/* root invol vs theft */
+data insurance_theft_adj;
+	set insurance;
+	root_invol = sqrt(invol);
+run;
+
+title 'root_invol v theft';
+
+/* I don't think there's much to be done here. -Sam */
+
+proc reg data = insurance_theft_adj;
+	model root_invol = theft;
+	plot root_invol*theft;
+	output out = race_root_invol r = theft_Resid;
+	plot r.theft r.*p. r.*nqq.;
+	run;
+	
+/* root invol vs vol */
+data insurance_vol_adj;
+	set insurance;
+	root_invol = sqrt(invol);
+run;
+
+title 'root_invol v vol';
+
+/*significant outliers.  The zeros of invol have a lot of leverage. -Sam */
+
+proc reg data = insurance_vol_adj;
+	model root_invol = vol;
+	plot root_invol*vol;
+	output out = vol_root_invol r = vol_Resid;
+	plot r.vol r.*p. r.*nqq.;
+	run;
+
+	/* proc univariate plot data=fireroot_invol; */
+	/* var fire_Resid; */
+	/* run; */
