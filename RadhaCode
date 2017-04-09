@@ -2,7 +2,7 @@ ods html close;
 ods listing gpath="C:\Users\rdutta\Desktop";
 
 option ls=100 nodate; /* sets line width at 100 characters */
-title 'Fire vs Invol'; /* gives the output a title */
+title 'Fire vs Sqrt(Invol)'; /* gives the output a title */
 
 data insurance;            /* This data set will be a temporary sas file with name 'atct' */
 infile 'C:\Users\rdutta\Desktop\insurance.txt' firstobs = 2;     /* specifies file to read from */
@@ -13,17 +13,22 @@ run;
 proc print data=insurance; /* print out the data,*/
 run;
 
-proc reg data=insurance;
-model invol=fire;
-plot invol*fire;
-output out = fireinvol r=fire_Resid;
+data insurance_invol_adj;
+set insurance;
+root_invol = sqrt(invol);
+run;
+
+proc reg data=insurance_invol_adj;
+model root_invol=fire;
+plot root_invol*fire;
+output out = fireroot_invol r=fire_Resid;
 plot r.*fire r.*p. r.*nqq.;
 run;
 
-proc univariate data=insurance plot;
-var invol fire;
+proc univariate data=insurance_invol_adj plot;
+var root_invol fire;
 run;
 
-proc univariate plot data=fireinvol;
+proc univariate plot data=fireroot_invol;
 var fire_Resid;
 run;
