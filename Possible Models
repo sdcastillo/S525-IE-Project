@@ -1,0 +1,51 @@
+proc import datafile="/folders/myfolders/IE_project/by_zip.csv" out=insurance_raw 
+		dbms=csv replace;
+	getnames=yes;
+run;
+
+data insurance_final;
+	set insurance;
+	root_invol=sqrt(invol);
+	log_fire=log(fire);
+	root_race=log(race);
+	s_income = income*s;
+	log_income = log(income);
+	invol = invol + 1;
+	fr = log_fire*root_race;
+	run;
+	   
+/*MODEL 1 for invol  */
+ proc reg data = insurance_final;
+ model invol = log_fire log_income root_race age theft /r cli clm vif;
+ plot  r.*p. r.*nqq.;
+ run;
+ 
+ /*MODELS FOR INVOL */
+
+/*A*/
+ proc reg data = insurance_final;
+ model invol = log_income age theft root_race log_fire/r cli clm vif;
+ plot  r.*p. r.*nqq.;
+ run; 
+ 
+ /*B*/
+ proc reg data = insurance_final;
+ model invol = log_income age theft root_race log_fire/r cli clm vif;
+ plot  r.*p. r.*nqq.;
+ run; 
+ 
+/*C*/
+ proc reg data = insurance_final;
+	 model root_invol = log_fire income age root_race;
+	 run;
+	
+/* D */
+proc reg data = insurance_final;
+	 model root_invol = log_fire income age root_race theft;
+	 run;	 
+	 
+/* E */
+proc reg data = insurance_final;
+	 model root_invol = log_fire income age root_race; 
+  
+
