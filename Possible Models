@@ -1,6 +1,12 @@
+proc import datafile="/folders/myfolders/IE_project/by_zip.csv" out=insurance_raw 
+		dbms=csv replace;
+	getnames=yes;
+run;
+
+
 
 data insurance_final;
-	set insurance;
+	set insurance_raw;
 	root_invol=sqrt(invol);
 	log_fire=log(fire);
 	root_race=log(race);
