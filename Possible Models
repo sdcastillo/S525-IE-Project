@@ -1,7 +1,3 @@
-proc import datafile="/folders/myfolders/IE_project/by_zip.csv" out=insurance_raw 
-		dbms=csv replace;
-	getnames=yes;
-run;
 
 data insurance_final;
 	set insurance;
